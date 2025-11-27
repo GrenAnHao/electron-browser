@@ -1,0 +1,30 @@
+body {
+  color: var(--semi-color-text-0);
+  background-color: var(--semi-color-bg-0);
+}
+
+/* 全局禁用文本选择，提升用户体验 */
+* {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+/* 允许输入框和文本区域选择文本 */
+input,
+textarea {
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  user-select: text;
+}
+
+/* 允许 code 和 pre 标签选择文本（如果需要） */
+code,
+pre {
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  user-select: text;
+}

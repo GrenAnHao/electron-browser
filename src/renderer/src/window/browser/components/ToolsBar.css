@@ -1,0 +1,30 @@
+.component-list-demo-booklist {
+  .semi-list-item {
+    &:hover {
+      background-color: var(--semi-color-fill-0);
+    }
+
+    &:active {
+      background-color: var(--semi-color-fill-1);
+    }
+  }
+
+  /* 兼容旧的选择器 */
+  .list-item {
+    &:hover {
+      background-color: var(--semi-color-fill-0);
+    }
+
+    &:active {
+      background-color: var(--semi-color-fill-1);
+    }
+  }
+}
+
+body > .component-list-demo-drag-item {
+  font-size: 14px;
+}
+
+.component-list-demo-booklist-active-item {
+  background-color: var(--semi-color-fill-0);
+}

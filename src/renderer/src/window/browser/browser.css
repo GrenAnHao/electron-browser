@@ -1,0 +1,12 @@
+.titleBar {
+  app-region: drag;
+}
+
+/* 所有在 .titleBar 内的可交互元素自动 no-drag */
+.titleBar button,
+.titleBar .semi-dropdown,
+.titleBar .semi-avatar,
+.titleBar .semi-icon,
+.titleBar .semi-typography {
+  app-region: no-drag;
+}
