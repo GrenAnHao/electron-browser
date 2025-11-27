@@ -96,13 +96,11 @@ const HomePage: React.FC<HomePageProps> = ({ onOpenUrl }) => {
         <Row gutter={[16, 16]}>
           {quickLinks.map((item) => (
             <Col span={6} key={item.url}>
-              <Card
-                style={{ cursor: 'pointer' }}
-                bodyStyle={{ padding: 12, textAlign: 'center' }}
-                onClick={() => onOpenUrl(item.url)}
-              >
-                <Text>{item.title}</Text>
-              </Card>
+              <div style={{ cursor: 'pointer' }} onClick={() => onOpenUrl(item.url)}>
+                <Card bodyStyle={{ padding: 12, textAlign: 'center' }}>
+                  <Text>{item.title}</Text>
+                </Card>
+              </div>
             </Col>
           ))}
         </Row>

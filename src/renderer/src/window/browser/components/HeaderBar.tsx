@@ -62,7 +62,9 @@ const HeaderBar = () => {
     <Header
       className={'titleBar'}
       style={{
-        height: '64px'
+        height: '64px',
+        backgroundColor: 'var(--semi-color-bg-1)',
+        boxShadow: 'none'
       }}
     >
       <Nav mode="horizontal" defaultSelectedKeys={['Home']}>

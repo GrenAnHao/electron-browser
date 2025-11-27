@@ -1,4 +1,4 @@
-import { Button, Image, Layout, Typography } from '@douyinfe/semi-ui'
+import { Image, Layout, Typography } from '@douyinfe/semi-ui'
 import '@renderer/assets/layout-fill.css'
 import HeaderBar from '@renderer/window/browser/components/HeaderBar'
 import HomePage from '@renderer/window/browser/components/HomePage'
@@ -8,9 +8,14 @@ import React, { createRef, useCallback, useEffect, useState, useRef, useMemo } f
 import NativeWebView from '@customModel/WebView/render/NativeWebView'
 import { WebAction } from '@customModel/WebView/render/shared'
 import ToolsBar from '@renderer/window/browser/components/ToolsBar'
-import DraggableTabs from '@renderer/components/DraggableTabs'
-import type { TabItem } from '@renderer/components/DraggableTabs'
-import { IconPlus } from '@douyinfe/semi-icons'
+import {
+  EdgeTabs,
+  EdgeTabsBar,
+  EdgeTabsContents,
+  type TabItem,
+  type EdgeTabsMode
+} from '@renderer/components/edge-tabs/EdgeTabs'
+import { IconHome, IconGlobe } from '@douyinfe/semi-icons'
 
 // 判断 URL 是否应该保存到历史记录
 const shouldSaveToHistory = (url: string): boolean => {
@@ -36,6 +41,8 @@ const Browser = () => {
     activeKeyRef.current = activeKey
   }, [activeKey])
 
+  const lastNewWindowRef = useRef<{ url: string; time: number } | null>(null)
+
   // 使用 Map 存储 WebView 引用和元数据，确保引用稳定
   const webViewRefsMap = useRef<Map<string, React.RefObject<WebAction | null>>>(new Map())
   // 存储 URL 变化时的防抖定时器
@@ -47,7 +54,7 @@ const Browser = () => {
       title: string
       itemKey: string
       url: string
-      favicon?: string
+      favicon?: React.ReactNode
       isIncognito?: boolean
     }>
   >([])
@@ -67,7 +74,7 @@ const Browser = () => {
     )
   }, [])
 
-  const updateFavicon = useCallback((key: string, favicon: string) => {
+  const updateFavicon = useCallback((key: string, favicon: React.ReactNode) => {
     setPanes((prevPanes) =>
       prevPanes.map((pane) => (pane.itemKey === key ? { ...pane, favicon } : pane))
     )
@@ -80,6 +87,15 @@ const Browser = () => {
       return `${u.origin}/favicon.ico`
     } catch {
       return ''
+    }
+  }, [])
+
+  const getTitleFromUrl = useCallback((url: string) => {
+    try {
+      const u = new URL(url)
+      return u.host || url
+    } catch {
+      return url
     }
   }, [])
 
@@ -127,11 +143,63 @@ const Browser = () => {
   )
 
   // 处理标签页顺序变化
-  const handleTabOrderChange = useCallback((newOrder: string[]) => {
+  const handleItemsChange = useCallback((nextItems: TabItem[]) => {
+    const newOrder = nextItems.map((item) => item.key)
     setPanes((prevPanes) => {
       const panesMap = new Map(prevPanes.map((pane) => [pane.itemKey, pane]))
       return newOrder.map((key) => panesMap.get(key)!).filter(Boolean)
     })
+  }, [])
+
+  const handleUrlDrop = useCallback(
+    (url: string, targetKey?: string) => {
+      const title = getTitleFromUrl(url)
+      const favicon = getFaviconUrl(url) || undefined
+
+      if (targetKey) {
+        updateUrl(targetKey, url)
+        updateTitle(targetKey, title)
+        if (favicon) {
+          updateFavicon(targetKey, favicon)
+        }
+        if (targetKey === activeKeyRef.current) {
+          setCurrentUrl(url)
+          setCurrentTitle(title)
+          if (favicon) {
+            setCurrentFavicon(favicon)
+          }
+        }
+        return
+      }
+
+      const newKey = Date.now().toString()
+      setPanes((prevPanes) => [
+        ...prevPanes,
+        {
+          title,
+          itemKey: newKey,
+          url,
+          favicon,
+          isIncognito: false
+        }
+      ])
+      setActiveKey(newKey)
+      setCurrentUrl(url)
+      setCurrentTitle(title)
+      setCurrentFavicon(favicon)
+    },
+    [getFaviconUrl, getTitleFromUrl, updateUrl, updateTitle, updateFavicon]
+  )
+
+  const handleModeChange = useCallback((nextMode: EdgeTabsMode) => {
+    setTabsMode(nextMode)
+    if (nextMode === 'horizontal') {
+      setVerticalCollapsed(false)
+    }
+  }, [])
+
+  const handleToggleCollapse = useCallback(() => {
+    setVerticalCollapsed((prev) => !prev)
   }, [])
 
   const remove = useCallback((key: string) => {
@@ -182,14 +250,18 @@ const Browser = () => {
           setCurrentUrl(url)
           break
         }
+        case 'addIncognito': {
+          addIncognito()
+          break
+        }
       }
     },
-    [getWebViewRef, updateUrl]
+    [getWebViewRef, updateUrl, addIncognito]
   )
 
   // 保存历史记录的公共函数
   const saveHistory = useCallback(
-    async (itemKey: string, url: string, title: string, favicon?: string) => {
+    async (itemKey: string, url: string, title: string, favicon?: React.ReactNode) => {
       if (!shouldSaveToHistory(url)) {
         return
       }
@@ -199,10 +271,16 @@ const Browser = () => {
         if (currentPane?.isIncognito) {
           return
         }
+        let faviconToSave: string | undefined
+        if (typeof favicon === 'string') {
+          faviconToSave = favicon
+        } else if (typeof currentPane?.favicon === 'string') {
+          faviconToSave = currentPane.favicon
+        }
         await window.api.history.add({
           url,
           title: title || url,
-          favicon: favicon || currentPane?.favicon
+          favicon: faviconToSave
         })
       } catch (error) {
         console.error('记录历史失败:', error)
@@ -240,7 +318,11 @@ const Browser = () => {
     const currentPane = panes.find((pane) => pane.itemKey === activeKey)
     if (currentPane) {
       setCurrentTitle(currentPane.title)
-      setCurrentFavicon(currentPane.favicon)
+      if (typeof currentPane.favicon === 'string') {
+        setCurrentFavicon(currentPane.favicon)
+      } else {
+        setCurrentFavicon(undefined)
+      }
     }
   }, [activeKey, getWebViewRef, panes])
 
@@ -260,10 +342,24 @@ const Browser = () => {
 
   // 将 panes 转换为 TabItem[]
   // 关键:只依赖 panes,所有回调函数都使用稳定的引用
+  const renderFavicon = useCallback((favicon: React.ReactNode | undefined, url: string) => {
+    if (url === 'about:home') {
+      return <IconHome style={{ fontSize: 16 }} />
+    }
+    if (favicon) {
+      if (typeof favicon === 'string') {
+        return <Image width={16} height={16} src={favicon} preview={false} />
+      }
+      return favicon
+    }
+    return <IconGlobe style={{ fontSize: 16 }} />
+  }, [])
+
   const tabItems = useMemo<TabItem[]>(() => {
     console.log('Creating tabItems, panes count:', panes.length)
     return panes.map((pane) => ({
       key: pane.itemKey,
+      color: pane.isIncognito ? '#a855f7' : undefined,
       tab: (
         <div
           style={{
@@ -274,7 +370,7 @@ const Browser = () => {
             lineHeight: '24px'
           }}
         >
-          <Image width={16} height={16} src={pane.favicon} preview={false} />
+          {renderFavicon(pane.favicon, pane.url)}
           <Text
             ellipsis={{ showTooltip: { opts: { content: pane.title } } }}
             style={{ width: 150 }}
@@ -459,7 +555,20 @@ const Browser = () => {
   // 监听新窗口事件
   useEffect(() => {
     const handleNewWindow = (_event: any, url: string) => {
-      add(url)
+      const urlString = String(url || '').trim()
+      if (!urlString) {
+        return
+      }
+
+      const now = Date.now()
+      const last = lastNewWindowRef.current
+      if (last && last.url === urlString && now - last.time < 300) {
+        console.log('Skip duplicated new-window for url:', urlString)
+        return
+      }
+
+      lastNewWindowRef.current = { url: urlString, time: now }
+      add(urlString)
     }
 
     window.electron.ipcRenderer.on('new-window', handleNewWindow)
@@ -469,6 +578,9 @@ const Browser = () => {
     }
   }, [add])
 
+  const [tabsMode, setTabsMode] = useState<EdgeTabsMode>('horizontal')
+  const [verticalCollapsed, setVerticalCollapsed] = useState(false)
+
   console.log(
     'Rendering Browser with panes:',
     panes,
@@ -477,6 +589,14 @@ const Browser = () => {
     'currentUrl:',
     currentUrl
   )
+
+  const shellClassName = [
+    'edge-tabs-shell',
+    tabsMode === 'vertical' ? 'edge-tabs-shell-vertical' : '',
+    tabsMode === 'vertical' && verticalCollapsed ? 'edge-tabs-shell-vertical-collapsed' : ''
+  ]
+    .filter(Boolean)
+    .join(' ')
 
   return (
     <Layout className={'root-layout'}>
@@ -488,46 +608,27 @@ const Browser = () => {
         favicon={currentFavicon}
       />
       <Layout.Content>
-        <DraggableTabs
-          style={{
-            paddingTop: '5px'
-          }}
-          collapsible
-          type="card"
-          defaultActiveKey="1"
-          tabPaneMotion={false}
+        <EdgeTabs
           items={tabItems}
           activeKey={activeKey}
           onChange={(key) => setActiveKey(key)}
-          onTabClose={(key) => {
-            remove(key)
-          }}
-          onTabOrderChange={handleTabOrderChange}
-          tabBarExtraContent={
-            <div
-              style={{
-                display: 'flex',
-                gap: 4
-              }}
-            >
-              <Button
-                icon={<IconPlus size="small" />}
-                theme="borderless"
-                onClick={() => {
-                  add()
-                }}
-              />
-              <Button
-                theme="borderless"
-                onClick={() => {
-                  addIncognito()
-                }}
-              >
-                隐身
-              </Button>
-            </div>
-          }
-        />
+          onItemsChange={handleItemsChange}
+          onAddTab={() => add()}
+          onCloseTab={remove}
+          onUrlDrop={handleUrlDrop}
+          mode={tabsMode}
+          onModeChange={handleModeChange}
+          verticalCollapsed={verticalCollapsed}
+          onToggleCollapse={handleToggleCollapse}
+          lazy
+          keepAlive
+          destroyOnClose
+        >
+          <div className={shellClassName}>
+            <EdgeTabsBar />
+            <EdgeTabsContents />
+          </div>
+        </EdgeTabs>
       </Layout.Content>
     </Layout>
   )

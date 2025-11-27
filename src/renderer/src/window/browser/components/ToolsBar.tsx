@@ -1042,7 +1042,10 @@ const ToolsBar = (props: ToolsBarProps) => {
         borderBottom: '1px solid var(--semi-color-border)',
         paddingLeft: '5px',
         paddingRight: '5px',
-        height: '40px'
+        paddingTop: '4px',
+        paddingBottom: '4px',
+        height: '40px',
+        backgroundColor: 'var(--semi-color-bg-1)'
       }}
     >
       <div
@@ -1095,6 +1098,13 @@ const ToolsBar = (props: ToolsBarProps) => {
             setThisUrl(value)
           }}
         />
+        <Button
+          key={'incognito'}
+          theme={'borderless'}
+          onClick={() => event('addIncognito')}
+        >
+          隐身
+        </Button>
         <Dropdown trigger={'click'} position={'bottomRight'} render={favoriteMenuContent}>
           <Button
             key={'favorite'}
